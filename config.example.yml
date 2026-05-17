@@ -1,0 +1,64 @@
+service:
+    name: saga-sandbox
+    port: 50051
+    shutdown_timeout: 10s
+
+logging:
+    level: warn
+    add_source: false
+    include_trace_id: true
+
+tracing:
+    enabled: false
+    endpoint: alloy.lan:4317
+    protocol: grpc
+    insecure: false
+    sample_ratio: 1.0
+
+profiling:
+    enabled: false
+    server_address: https://pyroscope-ingest.lan
+    namespace: saga-sandbox
+    basic_auth_user: ""
+    basic_auth_password: ""
+    tenant_id: ""
+
+database:
+    host: postgres.lan
+    port: "5432"
+    user: example_user
+    password: example_password
+    database: example
+    run_migrations: false
+    run_seeders: false
+    pool:
+        max_conns: 20
+        min_conns: 5
+        max_conn_life_time: 1h
+        max_conn_idle_time: 6h
+
+nats:
+    url: nats.lan:4222
+    username: example_user
+    password: example_password
+    queue_group_prefix: saga-sandbox
+    subscribers_count: 1
+    close_timeout: 30s
+    ack_wait_timeout: 30s
+    subscribe_timeout: 30s
+    jetstream:
+        enabled: true
+        auto_provision: true
+        track_msg_id: true
+        ack_async: false
+        durable_prefix: saga-sandbox
+
+relay:
+    interval: 2s
+    batch_size: 100
+
+sweeper:
+    interval: 15s
+    stuck_after: 60s
+    max_attempts: 5
+    batch_size: 100
