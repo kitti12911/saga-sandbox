@@ -10,7 +10,8 @@ if [ "${cgo}" = "true" ] && ! command -v gcc >/dev/null 2>&1; then
 	exit 2
 fi
 
-packages="$(go list -buildvcs=false -f '{{.Dir}}' ./... | grep -v '/gen/' | sed "s#^${PWD}#.#")"
+package_dirs="$(go list -buildvcs=false -f '{{.Dir}}' ./...)"
+packages="$(printf '%s\n' "${package_dirs}" | awk -v pwd="${PWD}" '$0 !~ /\/gen\// { sub("^" pwd, "."); print }')"
 if [ -z "${packages}" ]; then
 	echo "no Go packages to test"
 	exit 0

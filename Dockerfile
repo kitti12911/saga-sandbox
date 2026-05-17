@@ -8,12 +8,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY buf.gen.yaml ./
-COPY proto ./proto
 COPY cmd ./cmd
 COPY internal ./internal
 
 RUN rm -rf gen/grpc \
-	&& if [ -n "$(find proto -name '*.proto' 2>/dev/null)" ]; then buf generate; fi
+	&& if grep -qE '^[[:space:]]*-[[:space:]]*git_repo:' buf.gen.yaml 2>/dev/null; then buf generate; fi
 
 ARG TARGETOS
 ARG TARGETARCH
