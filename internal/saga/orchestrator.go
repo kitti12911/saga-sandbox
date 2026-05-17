@@ -154,10 +154,14 @@ func (o *Orchestrator) HandleReply(ctx context.Context, reply messaging.Reply) e
 			return nil
 		}
 
+		// Cast to json.RawMessage so bun emits the bytes as a JSON literal in
+		// the UPDATE parameter; a raw []byte would be bound as bytea (\x…) and
+		// rejected by the jsonb column with SQLSTATE 22P02.
 		responseJSON, err := json.Marshal(reply)
 		if err != nil {
 			return fmt.Errorf("marshal reply: %w", err)
 		}
+		responseRaw := json.RawMessage(responseJSON)
 
 		stepStatus := database.StepSucceeded
 		sagaState := database.SagaCompleted
@@ -173,7 +177,7 @@ func (o *Orchestrator) HandleReply(ctx context.Context, reply messaging.Reply) e
 		if _, err := idb.NewUpdate().
 			Model((*database.SagaStep)(nil)).
 			Set("status = ?", stepStatus).
-			Set("response = ?", responseJSON).
+			Set("response = ?", responseRaw).
 			Set("updated_at = now()").
 			Where("saga_id = ?", reply.SagaID).
 			Where("step_index = ?", captureStep).
