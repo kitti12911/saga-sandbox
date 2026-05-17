@@ -4,11 +4,8 @@ set -eu
 repo_dir="${CI_PROJECT_DIR:-$(pwd)}"
 cd "${repo_dir}"
 
+# saga-sandbox consumes its proto contract remotely (see buf.gen.yaml:
+# git_repo proto-sandbox @ tag). buf generate always has input, so it runs
+# unconditionally — there is no local proto/ directory.
 rm -rf gen/grpc
-
-# Generate protobuf code only when .proto files exist. A freshly generated
-# project ships an empty proto/ directory; add your .proto files and this
-# step starts producing code under gen/grpc/.
-if [ -n "$(find proto -name '*.proto' 2>/dev/null)" ]; then
-	buf generate
-fi
+buf generate
