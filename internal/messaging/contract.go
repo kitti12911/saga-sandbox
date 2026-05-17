@@ -4,11 +4,15 @@
 package messaging
 
 // NATS subjects for the payment saga.
+// Subjects are dotless: lib-async/watermill-nats auto-provisions a JetStream
+// stream named from the topic, and JetStream stream names cannot contain ".".
+// These are a fixed cross-service contract — keep saga-sandbox and
+// payment-sandbox identical.
 const (
-	SubjectCaptureCmd   = "payment.capture.cmd"
-	SubjectCaptureReply = "payment.capture.reply"
-	SubjectRefundCmd    = "payment.refund.cmd"
-	SubjectRefundReply  = "payment.refund.reply"
+	SubjectCaptureCmd   = "payment-capture-cmd"
+	SubjectCaptureReply = "payment-capture-reply"
+	SubjectRefundCmd    = "payment-refund-cmd"
+	SubjectRefundReply  = "payment-refund-reply"
 )
 
 // Command kinds.
