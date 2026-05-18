@@ -1,0 +1,18 @@
+version: v2
+inputs:
+    - git_repo: https://github.com/kitti12911/proto-sandbox.git
+      tag: v1.9.0
+      paths:
+          - saga/v1/saga.proto
+managed:
+    enabled: true
+    override:
+        - file_option: go_package_prefix
+          value: github.com/kitti12911/saga-sandbox/gen/grpc
+plugins:
+    - local: protoc-gen-go
+      out: gen/grpc
+      opt: paths=source_relative
+    - local: protoc-gen-go-grpc
+      out: gen/grpc
+      opt: paths=source_relative

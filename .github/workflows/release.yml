@@ -1,0 +1,235 @@
+name: Release
+
+on:
+    workflow_call:
+        inputs:
+            release_branch:
+                required: true
+                type: string
+            release_sha:
+                required: true
+                type: string
+        outputs:
+            published:
+                value: ${{ jobs.release.outputs.published }}
+            version:
+                value: ${{ jobs.release.outputs.version }}
+            git_tag:
+                value: ${{ jobs.release.outputs.git_tag }}
+            image_digest:
+                value: ${{ jobs.publish.outputs.image_digest }}
+            amd64_digest:
+                value: ${{ jobs.publish.outputs.amd64_digest }}
+            arm64_digest:
+                value: ${{ jobs.publish.outputs.arm64_digest }}
+
+concurrency:
+    group: ${{ github.workflow }}-publish
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    IMAGE_NAME: saga-sandbox
+    RELEASE_BRANCH: ${{ inputs.release_branch }}
+    RELEASE_SHA: ${{ inputs.release_sha }}
+
+jobs:
+    plan:
+        name: Plan Semantic Release
+        runs-on: ubuntu-latest
+        container:
+            image: ${{ vars.RELEASE_TOOLCHAIN_IMAGE }}
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: write
+        outputs:
+            release_created: ${{ steps.plan.outputs.release_created }}
+            tag_name: ${{ steps.plan.outputs.tag_name }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  ref: ${{ env.RELEASE_BRANCH }}
+                  fetch-depth: 0
+
+            - name: Pin release commit
+              run: |
+                  git config --global --add safe.directory "$(pwd)"
+                  git reset --hard "${RELEASE_SHA}"
+
+            - id: plan
+              name: Run semantic-release dry-run
+              run: CI_OUTPUT_FILE="${GITHUB_OUTPUT}" ./scripts/ci/semantic-release-plan.sh --no-ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    build:
+        name: Build and Scan Image (${{ matrix.arch }})
+        runs-on: ${{ matrix.runner }}
+        needs:
+            - plan
+        if: needs.plan.outputs.release_created == 'true'
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - arch: amd64
+                      platform: linux/amd64
+                      runner: ubuntu-latest
+                    - arch: arm64
+                      platform: linux/arm64
+                      runner: ubuntu-24.04-arm
+        env:
+            REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+            IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+            IMAGE_REF: ${{ vars.IMAGE_REGISTRY }}/${{ vars.IMAGE_NAMESPACE }}/saga-sandbox
+            STAGING_IMAGE_REF: ${{ vars.IMAGE_REGISTRY }}/${{ vars.IMAGE_NAMESPACE }}/saga-sandbox:staging-${{ inputs.release_sha }}-${{ matrix.arch }}
+            TOOLCHAIN_IMAGE: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  ref: ${{ env.RELEASE_SHA }}
+
+            - name: Check release inputs
+              run: ./scripts/ci/require-env.sh REGISTRY IMAGE_NAMESPACE IMAGE_REF STAGING_IMAGE_REF TOOLCHAIN_IMAGE
+
+            - name: Set up Docker Buildx
+              run: ./scripts/ci/setup-buildx.sh
+
+            - name: Login to image registry
+              run: ./scripts/ci/login-registry.sh
+              env:
+                  REGISTRY_USERNAME: ${{ secrets.IMAGE_REGISTRY_USERNAME }}
+                  REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+
+            - name: Build and push staging image
+              run: ./scripts/ci/build-image.sh
+              env:
+                  IMAGE_CONTEXT: .
+                  IMAGE_PLATFORM: ${{ matrix.platform }}
+                  IMAGE_TAG: ${{ env.STAGING_IMAGE_REF }}
+                  BUILD_CACHE_FROM: type=gha,scope=saga-sandbox-${{ matrix.arch }}
+                  BUILD_CACHE_TO: type=gha,mode=max,scope=saga-sandbox-${{ matrix.arch }}
+                  BUILD_OUTPUT: type=image,push=true,oci-mediatypes=true
+                  BUILD_PROVENANCE: true
+                  BUILD_SBOM: true
+
+            - name: Scan image with Trivy
+              run: ./scripts/ci/scan-image.sh
+              env:
+                  TRIVY_IMAGE_REF: ${{ env.STAGING_IMAGE_REF }}
+                  TRIVY_REPORT: ${{ runner.temp }}/trivy-results.json
+                  TRIVY_QUIET: true
+                  TRIVY_IMAGE_SRC: remote
+                  TRIVY_PLATFORM: ${{ matrix.platform }}
+                  TRIVY_USERNAME: ${{ secrets.IMAGE_REGISTRY_USERNAME }}
+                  TRIVY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+
+    release:
+        name: Publish Semantic Release
+        runs-on: ubuntu-latest
+        container:
+            image: ${{ vars.RELEASE_TOOLCHAIN_IMAGE }}
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
+        needs:
+            - plan
+            - build
+        if: needs.plan.outputs.release_created == 'true'
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: write
+        outputs:
+            published: ${{ steps.semantic.outputs.published }}
+            version: ${{ steps.semantic.outputs.version }}
+            git_tag: ${{ steps.semantic.outputs.git_tag }}
+            env_tag: ${{ steps.semantic.outputs.env_tag }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  ref: ${{ env.RELEASE_BRANCH }}
+                  fetch-depth: 0
+
+            - name: Pin release commit
+              run: |
+                  git config --global --add safe.directory "$(pwd)"
+                  git reset --hard "${RELEASE_SHA}"
+
+            - id: semantic
+              name: Publish semantic release
+              run: CI_OUTPUT_FILE="${GITHUB_OUTPUT}" ./scripts/ci/semantic-release-publish.sh --no-ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    publish:
+        name: Publish Multi-Arch Image
+        runs-on: ubuntu-latest
+        needs:
+            - plan
+            - release
+            - build
+        if: |
+            needs.plan.outputs.release_created == 'true' &&
+            needs.release.outputs.published == 'true'
+        outputs:
+            image_digest: ${{ steps.image.outputs.digest }}
+            amd64_digest: ${{ steps.image.outputs.amd64_digest }}
+            arm64_digest: ${{ steps.image.outputs.arm64_digest }}
+        env:
+            REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+            IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+            IMAGE_REF: ${{ vars.IMAGE_REGISTRY }}/${{ vars.IMAGE_NAMESPACE }}/saga-sandbox
+            RELEASE_TAG: ${{ needs.release.outputs.git_tag }}
+            ENV_TAG: ${{ needs.release.outputs.env_tag }}
+            IMAGE_ARCHES: amd64 arm64
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  ref: ${{ env.RELEASE_SHA }}
+
+            - name: Check release inputs
+              run: ./scripts/ci/require-env.sh REGISTRY IMAGE_NAMESPACE IMAGE_REF RELEASE_TAG
+
+            - name: Set up Docker Buildx
+              run: ./scripts/ci/setup-buildx.sh
+
+            - name: Login to image registry
+              run: ./scripts/ci/login-registry.sh
+              env:
+                  REGISTRY_USERNAME: ${{ secrets.IMAGE_REGISTRY_USERNAME }}
+                  REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+
+            # sigstore/cosign-installer v4.1.1
+            - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
+
+            - name: Promote scanned image tags
+              run: |
+                  for arch in ${IMAGE_ARCHES}; do
+                      STAGING_IMAGE_REF="${IMAGE_REF}:staging-${RELEASE_SHA}-${arch}" \
+                      ARCH_IMAGE_REF="${IMAGE_REF}:${RELEASE_TAG}-${arch}" \
+                      SHA_ARCH_IMAGE_REF="${IMAGE_REF}:${RELEASE_SHA}-${arch}" \
+                      ./scripts/ci/promote-image.sh
+                  done
+
+            - name: Create multi-arch manifest
+              run: ./scripts/ci/publish-manifest.sh
+
+            - id: image
+              name: Resolve image digests
+              run: CI_OUTPUT_FILE="${GITHUB_OUTPUT}" ./scripts/ci/resolve-image-digests.sh
+
+            - name: Sign Docker images
+              run: ./scripts/ci/sign-image.sh
+              env:
+                  COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}

@@ -1,0 +1,11 @@
+/.github/ @kitti12911
+/.vscode/ @kitti12911
+/.golangci.yml @kitti12911
+/.markdownlint-cli2.jsonc @kitti12911
+/.prettierrc.json @kitti12911
+/.releaserc.json @kitti12911
+/.air.toml @kitti12911
+/Makefile @kitti12911
+/Dockerfile @kitti12911
+/buf.gen.yaml @kitti12911
+/config.example.yml @kitti12911

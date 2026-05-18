@@ -1,0 +1,41 @@
+name: Markdownlint
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - ".github/workflows/markdownlint.yml"
+            - ".markdownlint-cli2.*"
+            - ".markdownlint.*"
+            - "scripts/ci/markdownlint.sh"
+            - "**/*.md"
+            - "**/*.markdown"
+    pull_request:
+        paths:
+            - ".github/workflows/markdownlint.yml"
+            - ".markdownlint-cli2.*"
+            - ".markdownlint.*"
+            - "scripts/ci/markdownlint.sh"
+            - "**/*.md"
+            - "**/*.markdown"
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    markdownlint:
+        name: Markdownlint
+        runs-on: ubuntu-latest
+        container:
+            image: node:24.10.0-bookworm@sha256:06e54ecf113a30f0ff9a1d309866a5924d3bda4389eab11a0e1e92f3251d915d
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+            - name: Run markdownlint-cli2
+              run: ./scripts/ci/markdownlint.sh
