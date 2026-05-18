@@ -1,0 +1,28 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": ["config:recommended"],
+    "timezone": "Asia/Bangkok",
+    "schedule": ["* 0-4 1 * *"],
+    "updateNotScheduled": false,
+    "enabledManagers": [
+        "gomod",
+        "github-actions",
+        "dockerfile",
+        "custom.regex"
+    ],
+    "customManagers": [
+        {
+            "customType": "regex",
+            "description": "Update Go tool versions installed in Dockerfiles",
+            "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+            "matchStrings": [
+                "go install (?<depName>[^\\s@]+)@(?<currentValue>v?\\d+\\.\\d+\\.\\d+(?:[-+][^\\s\\\\]+)?)"
+            ],
+            "datasourceTemplate": "go"
+        }
+    ],
+    "postUpdateOptions": ["gomodTidy"],
+    "reviewersFromCodeOwners": true,
+    "assigneesFromCodeOwners": true,
+    "assignAutomerge": true
+}

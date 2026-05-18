@@ -1,0 +1,380 @@
+name: Go CI
+
+on:
+    push:
+        branches:
+            - develop
+            - uat
+            - main
+        paths:
+            - "release.config.cjs"
+            - ".github/workflows/go-ci.yml"
+            - ".github/workflows/release.yml"
+            - ".golangci.yml"
+            - "Dockerfile"
+            - "Makefile"
+            - "buf.gen.yaml"
+            - "config.example.yml"
+            - "go.mod"
+            - "go.sum"
+            - "scripts/ci/**"
+            - "**/*.go"
+            - "**/*.sql"
+            - "**/*.yml"
+            - "**/*.yaml"
+            - "!README.md"
+    pull_request:
+        paths:
+            - "release.config.cjs"
+            - ".github/workflows/go-ci.yml"
+            - ".github/workflows/release.yml"
+            - ".golangci.yml"
+            - "Dockerfile"
+            - "Makefile"
+            - "buf.gen.yaml"
+            - "config.example.yml"
+            - "go.mod"
+            - "go.sum"
+            - "scripts/ci/**"
+            - "**/*.go"
+            - "**/*.sql"
+            - "**/*.yml"
+            - "**/*.yaml"
+            - "!README.md"
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    generate:
+        name: Generate
+        runs-on: ubuntu-latest
+        container:
+            image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+            - name: Generate code
+              run: ./scripts/ci/generate-code.sh
+
+            # actions/upload-artifact v7.0.1
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+              with:
+                  name: generated-code
+                  path: |
+                      gen/
+
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        needs:
+            - generate
+        container:
+            image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+            # actions/download-artifact v8.0.1
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+              with:
+                  name: generated-code
+                  path: gen
+
+            - name: Lint Go code
+              run: ./scripts/ci/go-lint.sh
+
+    test:
+        name: Test
+        runs-on: ubuntu-latest
+        needs:
+            - generate
+        container:
+            image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+            # actions/download-artifact v8.0.1
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+              with:
+                  name: generated-code
+                  path: gen
+
+            - name: Test with coverage
+              run: ./scripts/ci/go-test.sh
+              env:
+                  GO_TEST_RACE: false
+                  # Keep in sync with GO_COVERAGE_EXCLUDE_REGEX in the Makefile
+                  # so local `make cov` and CI report the same %.
+                  GO_COVERAGE_EXCLUDE_REGEX: "/cmd/|/internal/database/|/handler\\.go:|/query\\.go:|/repository\\.go:|/internal/server/grpc\\.go:"
+
+            - name: Show coverage
+              run: |
+                  coverage_total="$(go tool cover -func=coverage.out | tail -n 1)"
+                  echo "${coverage_total}"
+                  {
+                      echo "## Go coverage"
+                      echo
+                      echo '```text'
+                      echo "${coverage_total}"
+                      echo '```'
+                  } >> "${GITHUB_STEP_SUMMARY}"
+
+    toolchain-security:
+        name: Toolchain Security
+        runs-on: ubuntu-latest
+        needs:
+            - generate
+        container:
+            image: ${{ vars.SECURITY_TOOLCHAIN_IMAGE }}
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  fetch-depth: 0
+
+            # actions/download-artifact v8.0.1
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+              with:
+                  name: generated-code
+                  path: gen
+
+            - name: govulncheck and Semgrep
+              run: ./scripts/ci/security-scan.sh
+
+    security:
+        name: Supply Chain Security
+        runs-on: ubuntu-latest
+        container:
+            image: ${{ vars.SUPPLY_CHAIN_TOOLCHAIN_IMAGE }}
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  fetch-depth: 0
+
+            - name: Trivy and Gitleaks
+              run: ./scripts/ci/supply-chain-scan.sh
+
+    release:
+        name: Release
+        needs:
+            - generate
+            - lint
+            - test
+            - toolchain-security
+            - security
+        if: |
+            github.event_name == 'push' &&
+            needs.generate.result == 'success' &&
+            needs.lint.result == 'success' &&
+            needs.test.result == 'success' &&
+            needs.toolchain-security.result == 'success' &&
+            needs.security.result == 'success'
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: write
+        uses: ./.github/workflows/release.yml
+        with:
+            release_branch: ${{ github.ref_name }}
+            release_sha: ${{ github.sha }}
+        secrets: inherit
+
+    promotion-pr:
+        name: Create Promotion PR
+        runs-on: ubuntu-latest
+        needs:
+            - release
+        if: |
+            github.event_name == 'push' &&
+            (github.ref_name == 'develop' || github.ref_name == 'uat')
+        permissions:
+            contents: read
+            issues: write
+            pull-requests: write
+        steps:
+            - name: Create or update promotion PR
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPOSITORY: ${{ github.repository }}
+                  SOURCE_BRANCH: ${{ github.ref_name }}
+                  SOURCE_SHA: ${{ github.sha }}
+                  WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  case "${SOURCE_BRANCH}" in
+                      develop)
+                          TARGET_BRANCH="uat"
+                          ;;
+                      uat)
+                          TARGET_BRANCH="main"
+                          ;;
+                      *)
+                          echo "No promotion target configured for ${SOURCE_BRANCH}."
+                          exit 0
+                          ;;
+                  esac
+
+                  compare_status="$(gh api \
+                      "repos/${REPOSITORY}/compare/${TARGET_BRANCH}...${SOURCE_BRANCH}" \
+                      --jq '.status')"
+                  if [ "${compare_status}" = "identical" ] || [ "${compare_status}" = "behind" ]; then
+                      echo "${SOURCE_BRANCH} has no new commits to promote to ${TARGET_BRANCH}."
+                      exit 0
+                  fi
+
+                  title="Promote ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                  body="$(mktemp)"
+                  cat > "${body}" <<EOF
+                  Automated promotion PR from \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`.
+
+                  Source commit: \`${SOURCE_SHA}\`
+                  Successful workflow run: ${WORKFLOW_RUN_URL}
+                  EOF
+
+                  existing_prs="$(gh pr list \
+                      --repo "${REPOSITORY}" \
+                      --head "${SOURCE_BRANCH}" \
+                      --base "${TARGET_BRANCH}" \
+                      --state open \
+                      --json number,createdAt \
+                      --jq 'sort_by(.createdAt) | reverse | .[].number')"
+
+                  existing_pr="$(printf '%s\n' "${existing_prs}" | sed -n '1p')"
+                  duplicate_prs="$(printf '%s\n' "${existing_prs}" | sed -n '2,$p')"
+
+                  if [ -n "${existing_pr}" ]; then
+                      gh pr edit "${existing_pr}" \
+                          --repo "${REPOSITORY}" \
+                          --title "${title}" \
+                          --body-file "${body}"
+                      echo "Updated promotion PR #${existing_pr}."
+                  else
+                      created_pr_url="$(gh pr create \
+                          --repo "${REPOSITORY}" \
+                          --head "${SOURCE_BRANCH}" \
+                          --base "${TARGET_BRANCH}" \
+                          --title "${title}" \
+                          --body-file "${body}")"
+                      existing_pr="$(gh pr view "${created_pr_url}" \
+                          --repo "${REPOSITORY}" \
+                          --json number \
+                          --jq '.number')"
+                      echo "Created promotion PR #${existing_pr}."
+                  fi
+
+                  for duplicate_pr in ${duplicate_prs}; do
+                      gh pr close "${duplicate_pr}" \
+                          --repo "${REPOSITORY}" \
+                          --comment "Closing duplicate promotion PR; #${existing_pr} now tracks \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`."
+                  done
+
+    helm-image-update:
+        name: Update Helm Values
+        runs-on: ubuntu-latest
+        needs:
+            - release
+        if: |
+            github.event_name == 'push' &&
+            needs.release.outputs.published == 'true'
+        permissions:
+            contents: read
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  path: saga-sandbox
+
+            # actions/create-github-app-token v2.1.4
+            - uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
+              id: homelab-devops-token
+              with:
+                  app-id: ${{ secrets.BRANCH_SYNC_APP_ID }}
+                  private-key: ${{ secrets.BRANCH_SYNC_APP_PRIVATE_KEY }}
+                  owner: ${{ github.repository_owner }}
+                  repositories: homelab-devops
+
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  repository: ${{ github.repository_owner }}/homelab-devops
+                  ref: main
+                  path: homelab-devops
+                  token: ${{ steps.homelab-devops-token.outputs.token }}
+
+            - name: Update environment values image
+              env:
+                  VALUES_FILE: homelab-devops/apps/kubernetes/app/${{ github.ref_name }}/saga-sandbox/values.yml
+                  IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+                  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+                  DEPLOY_IMAGE_REGISTRY: ${{ vars.DEPLOY_IMAGE_REGISTRY }}
+                  DEPLOY_IMAGE_NAMESPACE: ${{ vars.DEPLOY_IMAGE_NAMESPACE }}
+                  IMAGE_NAME: saga-sandbox
+                  RELEASE_TAG: ${{ needs.release.outputs.git_tag }}
+                  IMAGE_DIGEST: ${{ needs.release.outputs.image_digest }}
+              run: ./saga-sandbox/scripts/ci/update-helm-image-values.sh
+
+            - name: Commit values update
+              env:
+                  ENVIRONMENT: ${{ github.ref_name }}
+                  RELEASE_TAG: ${{ needs.release.outputs.git_tag }}
+                  GIT_WORKDIR: homelab-devops
+                  GIT_ADD_PATH: apps/kubernetes/app/${{ github.ref_name }}/saga-sandbox/values.yml
+                  GIT_COMMIT_MESSAGE: "chore(saga-sandbox): update ${{ github.ref_name }} image to ${{ needs.release.outputs.git_tag }}"
+                  GIT_USER_NAME: homelab-image-update[bot]
+                  GIT_USER_EMAIL: homelab-image-update[bot]@users.noreply.github.com
+                  GIT_PUSH_REMOTE: origin
+                  GIT_PUSH_REF: HEAD:main
+                  GIT_REBASE_BRANCH: main
+              run: ./saga-sandbox/scripts/ci/commit-and-push-changes.sh
+
+    sync-down:
+        name: Sync Main To Prerelease Branches
+        runs-on: ubuntu-latest
+        needs:
+            - release
+        if: |
+            github.event_name == 'push' &&
+            github.ref_name == 'main'
+        permissions:
+            contents: read
+        steps:
+            # actions/create-github-app-token v2.1.4
+            - uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
+              id: branch-sync-token
+              with:
+                  app-id: ${{ secrets.BRANCH_SYNC_APP_ID }}
+                  private-key: ${{ secrets.BRANCH_SYNC_APP_PRIVATE_KEY }}
+
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  fetch-depth: 0
+                  token: ${{ steps.branch-sync-token.outputs.token }}
+
+            - name: Fast-forward prerelease branches
+              env:
+                  REPOSITORY: ${{ github.repository }}
+                  BRANCH_SYNC_TOKEN: ${{ steps.branch-sync-token.outputs.token }}
+              run: ./scripts/ci/fast-forward-prerelease-branches.sh
