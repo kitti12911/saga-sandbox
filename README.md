@@ -13,8 +13,8 @@ Internal gRPC service scaffolded by
 - Saga orchestration, relay, sweeper, NATS, and gRPC handler packages.
 - Protobuf generation from `proto-sandbox` through `buf.gen.yaml`; generated
   code is written under `gen/grpc/`.
-- GitHub Actions and/or GitLab CI, Renovate, CODEOWNERS, golangci-lint,
-  markdownlint, Prettier, `.air.toml`, and a multi-stage `Dockerfile`.
+- GitHub Actions, Renovate, CODEOWNERS, golangci-lint, markdownlint,
+  Prettier, `.air.toml`, and a multi-stage `Dockerfile`.
 
 ## Getting started
 
