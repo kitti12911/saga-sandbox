@@ -72,8 +72,8 @@ github.com/kitti12911/lib-async v1.5.2 h1:+ZW4FBOVYbzbOK++AS+Tmztihc2EEq3N8cT+Qf
 github.com/kitti12911/lib-async v1.5.2/go.mod h1:Q7cO7BfRtlCrjfj/plDboB7aQUWgkx9frqa6FRSJbuA=
 github.com/kitti12911/lib-monitor v1.12.1 h1:3GQ3ZwTHP4A0qdbTr/oyZXRqv1xj2bK8XlLr3o7xq+o=
 github.com/kitti12911/lib-monitor v1.12.1/go.mod h1:zA6LY1OgLUY08PFjY2OGZ09hYwMaq4JB7HO+wlSfm9c=
-github.com/kitti12911/lib-orm/v3 v3.1.1 h1:Dp9mcyYahMu5FwC+0J4DJ24zc4xtXomf4CxrreKFspc=
-github.com/kitti12911/lib-orm/v3 v3.1.1/go.mod h1:LnEcDNV6KPu+x0kilUX48DfWlWvUABvGzV0m/nhwi40=
+github.com/kitti12911/lib-orm/v3 v3.3.0 h1:2UIIGXMFdFYc+sGHLCQ4Hw0DqBLbvYaRVbbcsAjIpYQ=
+github.com/kitti12911/lib-orm/v3 v3.3.0/go.mod h1:LnEcDNV6KPu+x0kilUX48DfWlWvUABvGzV0m/nhwi40=
 github.com/kitti12911/lib-util/v3 v3.15.1 h1:5M+z0MyE0Cc1eM0VjVH4SUsWXep6Tijqi+476eRKzgc=
 github.com/kitti12911/lib-util/v3 v3.15.1/go.mod h1:eo4eP9Yvo3Ftl/O/MaVR9BlwCxvMWOgM6KmnU6E1te0=
 github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBFW2IE=
