@@ -4,7 +4,7 @@ set -eu
 script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 "${script_dir}/require-env.sh" REPOSITORY BRANCH_SYNC_TOKEN
 
-repo_dir="${CI_PROJECT_DIR:-$(pwd)}"
+repo_dir="$(pwd)"
 cd "${repo_dir}"
 
 stable_branch="${STABLE_BRANCH:-main}"
