@@ -1,7 +1,7 @@
 version: v2
 inputs:
     - git_repo: https://github.com/kitti12911/proto-sandbox.git
-      tag: v1.9.1
+      tag: v2.0.0
       paths:
           - saga/v1/saga.proto
 managed:
