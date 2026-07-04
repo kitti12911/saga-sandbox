@@ -100,37 +100,47 @@ jobs:
             - name: Check release inputs
               run: ./scripts/ci/require-env.sh REGISTRY IMAGE_NAMESPACE IMAGE_REF STAGING_IMAGE_REF TOOLCHAIN_IMAGE
 
-            - name: Set up Docker Buildx
-              run: ./scripts/ci/setup-buildx.sh
+            # docker/setup-buildx-action v4.2.0
+            - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
 
+            # docker/login-action v4.4.0
             - name: Login to image registry
-              run: ./scripts/ci/login-registry.sh
-              env:
-                  REGISTRY_USERNAME: ${{ github.actor }}
-                  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+              uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0
+              with:
+                  registry: ${{ vars.IMAGE_REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
 
+            # docker/build-push-action v7.3.0
             - name: Build and push staging image
-              run: ./scripts/ci/build-image.sh
-              env:
-                  IMAGE_CONTEXT: .
-                  IMAGE_PLATFORM: ${{ matrix.platform }}
-                  IMAGE_TAG: ${{ env.STAGING_IMAGE_REF }}
-                  BUILD_CACHE_FROM: type=gha,scope=saga-sandbox-${{ matrix.arch }}
-                  BUILD_CACHE_TO: type=gha,mode=max,scope=saga-sandbox-${{ matrix.arch }}
-                  BUILD_OUTPUT: type=image,push=true,oci-mediatypes=true
-                  BUILD_PROVENANCE: true
-                  BUILD_SBOM: true
+              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+              with:
+                  context: .
+                  platforms: ${{ matrix.platform }}
+                  tags: ${{ env.STAGING_IMAGE_REF }}
+                  build-args: |
+                      TOOLCHAIN_IMAGE=${{ env.TOOLCHAIN_IMAGE }}
+                  cache-from: type=gha,scope=saga-sandbox-${{ matrix.arch }}
+                  cache-to: type=gha,mode=max,scope=saga-sandbox-${{ matrix.arch }}
+                  outputs: type=image,oci-mediatypes=true,push=true
+                  provenance: true
+                  sbom: true
 
+            # aquasecurity/trivy-action v0.36.0
             - name: Scan image with Trivy
-              run: ./scripts/ci/scan-image.sh
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+              with:
+                  scan-type: image
+                  image-ref: ${{ env.STAGING_IMAGE_REF }}
+                  format: json
+                  output: ${{ runner.temp }}/trivy-results.json
+                  severity: HIGH,CRITICAL
+                  ignore-unfixed: "true"
+                  exit-code: "0"
               env:
-                  TRIVY_IMAGE_REF: ${{ env.STAGING_IMAGE_REF }}
-                  TRIVY_REPORT: ${{ runner.temp }}/trivy-results.json
-                  TRIVY_QUIET: true
-                  TRIVY_IMAGE_SRC: remote
-                  TRIVY_PLATFORM: ${{ matrix.platform }}
                   TRIVY_USERNAME: ${{ github.actor }}
                   TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+                  TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db,ghcr.io/aquasecurity/trivy-db
 
     release:
         name: Publish Semantic Release
@@ -201,14 +211,16 @@ jobs:
             - name: Check release inputs
               run: ./scripts/ci/require-env.sh REGISTRY IMAGE_NAMESPACE IMAGE_REF RELEASE_TAG
 
-            - name: Set up Docker Buildx
-              run: ./scripts/ci/setup-buildx.sh
+            # docker/setup-buildx-action v4.2.0
+            - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
 
+            # docker/login-action v4.4.0
             - name: Login to image registry
-              run: ./scripts/ci/login-registry.sh
-              env:
-                  REGISTRY_USERNAME: ${{ github.actor }}
-                  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+              uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0
+              with:
+                  registry: ${{ vars.IMAGE_REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
 
             # sigstore/cosign-installer v4.1.1
             - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
