@@ -180,6 +180,7 @@ jobs:
         permissions:
             contents: write
             issues: write
+            packages: write
             pull-requests: write
         uses: ./.github/workflows/release.yml
         with:
