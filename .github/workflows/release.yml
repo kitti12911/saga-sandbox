@@ -72,6 +72,9 @@ jobs:
         needs:
             - plan
         if: needs.plan.outputs.release_created == 'true'
+        permissions:
+            contents: read
+            packages: write
         strategy:
             fail-fast: false
             matrix:
@@ -103,8 +106,8 @@ jobs:
             - name: Login to image registry
               run: ./scripts/ci/login-registry.sh
               env:
-                  REGISTRY_USERNAME: ${{ secrets.IMAGE_REGISTRY_USERNAME }}
-                  REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+                  REGISTRY_USERNAME: ${{ github.actor }}
+                  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and push staging image
               run: ./scripts/ci/build-image.sh
@@ -126,8 +129,8 @@ jobs:
                   TRIVY_QUIET: true
                   TRIVY_IMAGE_SRC: remote
                   TRIVY_PLATFORM: ${{ matrix.platform }}
-                  TRIVY_USERNAME: ${{ secrets.IMAGE_REGISTRY_USERNAME }}
-                  TRIVY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+                  TRIVY_USERNAME: ${{ github.actor }}
+                  TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
     release:
         name: Publish Semantic Release
@@ -175,6 +178,9 @@ jobs:
         if: |
             needs.plan.outputs.release_created == 'true' &&
             needs.release.outputs.published == 'true'
+        permissions:
+            contents: read
+            packages: write
         outputs:
             image_digest: ${{ steps.image.outputs.digest }}
             amd64_digest: ${{ steps.image.outputs.amd64_digest }}
@@ -201,8 +207,8 @@ jobs:
             - name: Login to image registry
               run: ./scripts/ci/login-registry.sh
               env:
-                  REGISTRY_USERNAME: ${{ secrets.IMAGE_REGISTRY_USERNAME }}
-                  REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+                  REGISTRY_USERNAME: ${{ github.actor }}
+                  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
             # sigstore/cosign-installer v4.1.1
             - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
