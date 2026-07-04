@@ -140,6 +140,8 @@ jobs:
               env:
                   TRIVY_USERNAME: ${{ github.actor }}
                   TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+                  TRIVY_IMAGE_SRC: remote
+                  TRIVY_PLATFORM: ${{ matrix.platform }}
                   TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db,ghcr.io/aquasecurity/trivy-db
 
     release:
