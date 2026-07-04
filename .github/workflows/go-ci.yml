@@ -53,11 +53,20 @@ jobs:
     generate:
         name: Generate
         runs-on: ubuntu-latest
-        container:
-            image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+            # actions/setup-go v6.4.0
+            - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+              with:
+                  go-version-file: go.mod
+
+            - name: Install codegen tools
+              run: |
+                  go install github.com/bufbuild/buf/cmd/buf@v1.71.0
+                  go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+                  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
 
             - name: Generate code
               run: ./scripts/ci/generate-code.sh
@@ -74,11 +83,14 @@ jobs:
         runs-on: ubuntu-latest
         needs:
             - generate
-        container:
-            image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+            # actions/setup-go v6.4.0
+            - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+              with:
+                  go-version-file: go.mod
 
             # actions/download-artifact v8.0.1
             - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -86,19 +98,24 @@ jobs:
                   name: generated-code
                   path: gen
 
-            - name: Lint Go code
-              run: ./scripts/ci/go-lint.sh
+            # golangci/golangci-lint-action v9.2.0
+            - uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20
+              with:
+                  version: v2.12.2
 
     test:
         name: Test
         runs-on: ubuntu-latest
         needs:
             - generate
-        container:
-            image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+            # actions/setup-go v6.4.0
+            - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+              with:
+                  go-version-file: go.mod
 
             # actions/download-artifact v8.0.1
             - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -130,13 +147,21 @@ jobs:
         runs-on: ubuntu-latest
         needs:
             - generate
-        container:
-            image: ${{ vars.SECURITY_TOOLCHAIN_IMAGE }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
               with:
                   fetch-depth: 0
+
+            # actions/setup-go v6.4.0
+            - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+              with:
+                  go-version-file: go.mod
+
+            # actions/setup-python v6.3.0
+            - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+              with:
+                  python-version: "3.13"
 
             # actions/download-artifact v8.0.1
             - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -144,22 +169,46 @@ jobs:
                   name: generated-code
                   path: gen
 
+            # govulncheck-action is a composite with tag-pinned internals the org
+            # SHA-pin policy rejects; install directly.
+            - name: Install scanners
+              run: |
+                  go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
+                  pip install --quiet semgrep==1.168.0
+
             - name: govulncheck and Semgrep
               run: ./scripts/ci/security-scan.sh
 
     security:
         name: Supply Chain Security
         runs-on: ubuntu-latest
-        container:
-            image: ${{ vars.SUPPLY_CHAIN_TOOLCHAIN_IMAGE }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
               with:
                   fetch-depth: 0
 
-            - name: Trivy and Gitleaks
-              run: ./scripts/ci/supply-chain-scan.sh
+            # aquasecurity/trivy-action v0.36.0
+            - name: Trivy filesystem scan
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+              with:
+                  scan-type: fs
+                  scan-ref: .
+                  scanners: vuln,secret,misconfig
+                  severity: CRITICAL,HIGH
+                  ignore-unfixed: true
+                  exit-code: 1
+              env:
+                  TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db,ghcr.io/aquasecurity/trivy-db
+
+            # gitleaks/gitleaks-action v2.3.9
+            - name: Gitleaks
+              uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITLEAKS_ENABLE_COMMENTS: "false"
+                  GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+                  GITLEAKS_ENABLE_SUMMARY: "true"
 
     release:
         name: Release

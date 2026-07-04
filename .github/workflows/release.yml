@@ -39,8 +39,6 @@ jobs:
     plan:
         name: Plan Semantic Release
         runs-on: ubuntu-latest
-        container:
-            image: ${{ vars.RELEASE_TOOLCHAIN_IMAGE }}
         permissions:
             contents: write
             issues: write
@@ -147,8 +145,6 @@ jobs:
     release:
         name: Publish Semantic Release
         runs-on: ubuntu-latest
-        container:
-            image: ${{ vars.RELEASE_TOOLCHAIN_IMAGE }}
         needs:
             - plan
             - build
