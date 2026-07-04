@@ -68,6 +68,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 h1:HWRh5R2+9EifMyIHV7ZV+MIZqgz
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0/go.mod h1:JfhWUomR1baixubs02l85lZYYOm7LV6om4ceouMv45c=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
+github.com/kisielk/sqlstruct v0.0.0-20201105191214-5f3e10d3ab46/go.mod h1:yyMNCyc/Ib3bDTKd379tNMpB/7/H5TjM2Y9QJ5THLbE=
 github.com/kitti12911/lib-async v1.6.0 h1:PC/dTyl3MsVrOFM0FxA4qgIrI1mEpT868NQ8iyvoalw=
 github.com/kitti12911/lib-async v1.6.0/go.mod h1:Q7cO7BfRtlCrjfj/plDboB7aQUWgkx9frqa6FRSJbuA=
 github.com/kitti12911/lib-monitor v1.13.0 h1:/R6zP3l+wBtdkRoGvmSfJr/r3uxi63InhoCgiMkLA9E=

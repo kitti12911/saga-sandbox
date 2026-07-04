@@ -3,6 +3,7 @@ module github.com/kitti12911/saga-sandbox
 go 1.26.4
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/dromara/carbon/v2 v2.6.16
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
@@ -12,6 +13,7 @@ require (
 	github.com/kitti12911/lib-util/v3 v3.17.0
 	github.com/stretchr/testify v1.11.1
 	github.com/uptrace/bun v1.2.18
+	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	google.golang.org/grpc v1.80.0
@@ -60,7 +62,6 @@ require (
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/uptrace/bun/dbfixture v1.2.18 // indirect
 	github.com/uptrace/bun/dialect/mssqldialect v1.2.18 // indirect
-	github.com/uptrace/bun/dialect/pgdialect v1.2.18 // indirect
 	github.com/uptrace/bun/driver/pgdriver v1.2.18 // indirect
 	github.com/uptrace/bun/extra/bunotel v1.2.18 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelsql v0.3.2 // indirect
