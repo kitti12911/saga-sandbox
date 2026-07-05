@@ -55,7 +55,7 @@ module.exports = {
                     },
                     {
                         type: "chore",
-                        release: false
+                        release: "patch"
                     },
                     {
                         type: "refactor",

@@ -9,7 +9,7 @@ import (
 
 	"github.com/kitti12911/saga-sandbox/internal/config"
 
-	orm "github.com/kitti12911/lib-orm/v3"
+	orm "github.com/kitti12911/lib-orm/v4"
 )
 
 // New opens the saga database connection with models registered.

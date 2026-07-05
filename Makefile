@@ -2,7 +2,7 @@
 # repositories, query glue, server bootstrap) are dropped from coverage so the
 # reported % reflects code worth testing. Patterns are awk regexes matched
 # against the file:line column of coverage.out.
-GO_COVERAGE_EXCLUDE_REGEX = /cmd/|/internal/database/|/internal/server/grpc\.go:
+GO_COVERAGE_EXCLUDE_REGEX = /cmd/|/internal/database/|/internal/server/|/internal/relay/
 
 # ____________________ Go Command ____________________
 air:

@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	orm "github.com/kitti12911/lib-orm/v3"
+	orm "github.com/kitti12911/lib-orm/v4"
 
 	"github.com/kitti12911/saga-sandbox/internal/database"
 	"github.com/kitti12911/saga-sandbox/internal/messaging"
