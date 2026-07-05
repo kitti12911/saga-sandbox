@@ -14,10 +14,10 @@ log_file="${SEMANTIC_RELEASE_LOG:-${RUNNER_TEMP:-/tmp}/semantic-release-dry-run.
 
 set +e
 npx --yes \
-	--package semantic-release@25.0.3 \
+	--package semantic-release@25.0.5 \
 	--package @semantic-release/commit-analyzer@13.0.1 \
 	--package @semantic-release/release-notes-generator@14.1.1 \
-	--package @semantic-release/github@12.0.8 \
+	--package @semantic-release/github@12.0.9 \
 	--package conventional-changelog-conventionalcommits@9.3.1 \
 	semantic-release --dry-run >"${log_file}" 2>&1
 status="$?"
