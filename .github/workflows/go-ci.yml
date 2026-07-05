@@ -62,7 +62,15 @@ jobs:
               with:
                   go-version-file: go.mod
 
+            # actions/cache v6.1.0
+            - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+              id: gobin-codegen
+              with:
+                  path: ~/go/bin
+                  key: ${{ runner.os }}-gobin-codegen-${{ hashFiles('.github/workflows/go-ci.yml') }}
+
             - name: Install codegen tools
+              if: steps.gobin-codegen.outputs.cache-hit != 'true'
               run: |
                   go install github.com/bufbuild/buf/cmd/buf@v1.71.0
                   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
@@ -126,6 +134,9 @@ jobs:
             - name: Test with coverage
               run: ./scripts/ci/go-test.sh
               env:
+                  # PRs skip the race detector for speed; pushes (develop/uat/main)
+                  # keep the full CGO+race run as the release gate.
+                  GO_TEST_RACE: ${{ github.event_name == 'push' && 'true' || 'false' }}
                   # Keep in sync with GO_COVERAGE_EXCLUDE_REGEX in the Makefile
                   # so local `make cov` and CI report the same %.
                   GO_COVERAGE_EXCLUDE_REGEX: "/cmd/|/internal/database/|/internal/server/|/internal/relay/"
@@ -162,6 +173,8 @@ jobs:
             - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
               with:
                   python-version: "3.13"
+                  cache: "pip"
+                  cache-dependency-path: .github/workflows/go-ci.yml
 
             # actions/download-artifact v8.0.1
             - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -169,12 +182,21 @@ jobs:
                   name: generated-code
                   path: gen
 
+            # actions/cache v6.1.0
+            - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+              id: gobin-security
+              with:
+                  path: ~/go/bin
+                  key: ${{ runner.os }}-gobin-security-${{ hashFiles('.github/workflows/go-ci.yml') }}
+
             # govulncheck-action is a composite with tag-pinned internals the org
             # SHA-pin policy rejects; install directly.
-            - name: Install scanners
-              run: |
-                  go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
-                  pip install --quiet semgrep==1.168.0
+            - name: Install govulncheck
+              if: steps.gobin-security.outputs.cache-hit != 'true'
+              run: go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
+
+            - name: Install Semgrep
+              run: pip install --quiet semgrep==1.168.0
 
             - name: govulncheck and Semgrep
               run: ./scripts/ci/security-scan.sh
